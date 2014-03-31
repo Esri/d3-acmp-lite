@@ -39,58 +39,9 @@
 <body>
   <script src="http://d3js.org/d3.v3.min.js"></script>
   <script src="http://d3js.org/d3.geo.projection.v0.min.js"></script>
+  <script src="d3.acmp.js"></script>
   <script src="http://d3js.org/topojson.v1.min.js"></script>
   <script>
-
-  function pickProjection(scale, coords) {
-      if (scale <= 1.5) {
-        d3.select("#proj").text("Hammer");
-        currentProj = "hammer";
-        return d3.geo.hammer()
-           .coefficient(2)
-           .precision(0.3)
-           .scale(scale * 100)
-           .rotate([coords[0],0]);
-
-      } else if (scale <= 2.0) {
-        d3.select("#proj").text("Modified Hammer");
-        currentProj = "hammer";
-        return d3.geo.hammer()
-           .coefficient(2.0 - (scale-1.5) * 2.0)
-           .precision(0.3)
-           .scale(scale * 100)
-           .rotate([coords[0],0]);
-
-      } else if (scale <= 6.0) {
-        d3.select("#proj").text("Lambert azimuthal");
-        currentProj = "lambert";
-        return d3.geo.azimuthalEqualArea()
-           .scale(scale * 100)
-           .precision(0.3)
-           .clipAngle(180 - 1e-3)
-           .rotate(coords);
-
-      } else if (scale <= 12) {
-          d3.select("#proj").text("Albers");
-          currentProj = "albers";
-          coords = (coords[0] == 0) ? [0.01, 0.01] : coords;
-          return d3.geo.albers()
-            .rotate([coords[0], 0])
-            .center([0, -coords[1]])
-            .parallels([ -coords[1] - scale, -coords[1] + scale])
-            .scale(scale * 100)
-            .translate([width / 2, height / 2])
-            .precision(.1);
-
-      } else {
-        d3.select("#proj").text("Mercator");
-        return d3.geo.mercator()
-           .scale(scale * 95)
-           .translate([width / 2, height / 2])
-           .rotate([coords[0],0])
-           .center([0, -coords[1]]);
-      }
-    }
 
   var width = 960,
       height = 500,
@@ -99,9 +50,14 @@
       o0,
       currentProj,
       rotate = [0.1,0.1],
-      projection = pickProjection(1, [0,0]),
       graticule = d3.geo.graticule(),
       sphere = {type: "Sphere"};
+
+  
+  var acmp = d3.geo.acmp();
+  var projPick = acmp.pick(1, [0,0]);
+  currentProj = projPick.name.toLowerCase();
+  d3.select("#proj").text( currentProj );
 
   var canvas = d3.select("body").append("canvas")
     .attr("width", width)
@@ -110,7 +66,7 @@
   var context = canvas.node().getContext("2d");
 
   var path = d3.geo.path()
-    .projection(projection)
+    .projection(projPick.projection)
     .context(context);
 
   var zoom = d3.behavior.zoom()
@@ -118,11 +74,11 @@
     .on("zoomstart", function(){
       m0 = [d3.event.sourceEvent.pageX, d3.event.sourceEvent.pageY];
         if (currentProj == "albers") {
-          var proj = projection.rotate(),
-              cent = projection.center();
+          var proj = projPick.projection.rotate(),
+              cent = projPick.projection.center();
           o0 = [-proj[0], cent[1]];
         } else {
-          var proj = projection.rotate();
+          var proj = projPick.projection.rotate();
           o0 = [-proj[0],-proj[1]];
         }
         d3.event.sourceEvent.stopPropagation();
@@ -136,8 +92,10 @@
 
       rotate = [-o1[0], -o1[1]];
       scale = (d3.event.scale >= 1) ? d3.event.scale : 1;
-      projection = pickProjection(scale, rotate);
-      path = d3.geo.path().projection(projection);
+      projPick = acmp.pick(scale, rotate);
+      currentProj = projPick.name.toLowerCase();
+      d3.select("#proj").text( currentProj );
+      path = d3.geo.path().projection(projPick.projection);
       
       context.clearRect(0, 0, width, height);
       
